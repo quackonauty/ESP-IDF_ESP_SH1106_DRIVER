@@ -75,6 +75,34 @@ esp_err_t i2c_sh1106_init(i2c_master_bus_handle_t bus, i2c_sh1106_handle_t *hand
 esp_err_t i2c_sh1106_deinit(i2c_sh1106_handle_t *handle);
 
 /* =========================================================================
+ * Power management
+ * ====================================================================== */
+
+/**
+ * @brief Put the display to sleep (lowest power, a few uA).
+ *
+ * Sends Display OFF and switches the internal DC-DC converter off. The
+ * display RAM keeps its content, so nothing needs to be re-sent on wake-up.
+ * While asleep the buffer functions still work; only I2C traffic matters.
+ *
+ * @param handle Pointer to an initialised handle.
+ * @return ESP_OK or an I2C driver error.
+ */
+esp_err_t i2c_sh1106_display_off(i2c_sh1106_handle_t *handle);
+
+/**
+ * @brief Wake the display from sleep.
+ *
+ * Turns the DC-DC converter on, waits 100 ms for the panel voltage to
+ * stabilise (as required by the datasheet) and sends Display ON. To avoid
+ * flashing stale content, update the buffer and flush it BEFORE calling this.
+ *
+ * @param handle Pointer to an initialised handle.
+ * @return ESP_OK or an I2C driver error.
+ */
+esp_err_t i2c_sh1106_display_on(i2c_sh1106_handle_t *handle);
+
+/* =========================================================================
  * Convenience
  * ====================================================================== */
 

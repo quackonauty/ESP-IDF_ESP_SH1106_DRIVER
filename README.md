@@ -3,7 +3,7 @@
 | Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-S3 |
 | ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- |
 
-![Version](https://img.shields.io/badge/version-1.0.0-orange)
+![Version](https://img.shields.io/badge/version-1.1.0-orange)
 
 A lightweight and efficient SH1106 OLED display driver written entirely in C for the ESP-IDF framework, made for the **1.3-inch 128×64 I2C module (XFP1116-07AY)**. Same API and design as `esp_ssd1306_driver` (dirty-page tracking, partial flush, thread-safe I2C), adapted to the SH1106 controller.
 
@@ -175,6 +175,22 @@ xSemaphoreGive(oled_mutex);
 |----------|-------------|
 | `i2c_sh1106_init(bus, handle)` | Initialize display — probes I2C, sends init sequence, zeroes buffer |
 | `i2c_sh1106_deinit(handle)` | Remove I2C device and delete mutex |
+
+### Power management
+
+| Function | Description |
+|----------|-------------|
+| `i2c_sh1106_display_off(handle)` | Sleep: Display OFF + DC-DC off (a few µA). Display RAM is retained |
+| `i2c_sh1106_display_on(handle)` | Wake: DC-DC on, 100 ms settle, Display ON. Flush new data **before** calling it to avoid showing stale content |
+
+Typical use — turn the screen off after inactivity and wake it with a button:
+
+```c
+i2c_sh1106_display_off(&oled);          // after 30 s without activity
+...
+i2c_sh1106_buffer_to_ram(&oled);        // refresh content while still off
+i2c_sh1106_display_on(&oled);           // then wake it
+```
 
 ### Convenience
 
@@ -448,6 +464,11 @@ print(c_array)
 ---
 
 ## Changelog
+
+### 1.1.0
+
+- Added `i2c_sh1106_display_off()` / `i2c_sh1106_display_on()` for power saving.
+- `init` now waits 100 ms after enabling the DC-DC converter before Display ON (datasheet requirement).
 
 ### 1.0.0
 

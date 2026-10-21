@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include <esp_log.h>
+#include <freertos/task.h>
 
 static const char *const TAG = "ESP_SH1106_DRIVER";
 
@@ -195,6 +196,9 @@ esp_err_t i2c_sh1106_init(i2c_master_bus_handle_t bus, i2c_sh1106_handle_t *hand
         goto cleanup_device;
     }
 
+    /* The DC-DC converter was enabled in init_cmd: give the panel voltage 100 ms to settle */
+    vTaskDelay(pdMS_TO_TICKS(100));
+
     const uint8_t on_cmd[] = {OLED_CONTROL_BYTE_CMD, OLED_CMD_DISPLAY_ON};
     ret = sh1106_locked_transmit(handle, on_cmd, sizeof(on_cmd));
     if (ret != ESP_OK)
@@ -235,6 +239,40 @@ esp_err_t i2c_sh1106_deinit(i2c_sh1106_handle_t *handle)
 
     ESP_LOGI(TAG, "SH1106 deinitialized");
     return ESP_OK;
+}
+
+/* =========================================================================
+ * Power management
+ * ====================================================================== */
+
+esp_err_t i2c_sh1106_display_off(i2c_sh1106_handle_t *handle)
+{
+    /* Display OFF first, then DC-DC off (datasheet power-save order). RAM is retained. */
+    const uint8_t cmd[] = {OLED_CONTROL_BYTE_CMD, OLED_CMD_DISPLAY_OFF, OLED_CMD_SET_DCDC, OLED_DCDC_OFF};
+    esp_err_t ret = sh1106_locked_transmit(handle, cmd, sizeof(cmd));
+    if (ret != ESP_OK)
+        ESP_LOGE(TAG, "display_off failed (0x%x)", ret);
+    return ret;
+}
+
+esp_err_t i2c_sh1106_display_on(i2c_sh1106_handle_t *handle)
+{
+    /* DC-DC on -> wait for the panel voltage to settle -> Display ON */
+    const uint8_t dcdc_cmd[] = {OLED_CONTROL_BYTE_CMD, OLED_CMD_SET_DCDC, OLED_DCDC_ON};
+    esp_err_t ret = sh1106_locked_transmit(handle, dcdc_cmd, sizeof(dcdc_cmd));
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "display_on (DC-DC) failed (0x%x)", ret);
+        return ret;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    const uint8_t on_cmd[] = {OLED_CONTROL_BYTE_CMD, OLED_CMD_DISPLAY_ON};
+    ret = sh1106_locked_transmit(handle, on_cmd, sizeof(on_cmd));
+    if (ret != ESP_OK)
+        ESP_LOGE(TAG, "display_on failed (0x%x)", ret);
+    return ret;
 }
 
 /* =========================================================================
